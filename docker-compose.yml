@@ -1,7 +1,90 @@
 services:
-  structurizr:
-    image: structurizr/lite
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./docs:/usr/local/structurizr
+    measurement-service:
+        build:
+            context: .
+            dockerfile: Measurement/Dockerfile
+        environment:
+            - ASPNETCORE_ENVIRONMENT=Development
+            - ASPNETCORE_HTTP_PORTS=5000
+        ports:
+            - "5000:5000"
+            - "5001:5001"
+        depends_on:
+            - featurehub
+            - measurement-database
+        networks:
+            - bpt-network
+        command: >
+            sh -c "dotnet ef database update --project Measurement/Measurement.csproj && dotnet Measurement.dll"
+
+    patient-service:
+        build:
+            context: .
+            dockerfile: Patient/Dockerfile
+        environment:
+            - ASPNETCORE_ENVIRONMENT=Development
+            - ASPNETCORE_HTTP_PORTS=5000
+        ports:
+            - "5002:5000"
+            - "5003:5001"
+        depends_on:
+            - featurehub
+            - patient-database
+        networks:
+            - bpt-network
+        command: >
+            sh -c "dotnet ef database update --project Patient/Patient.csproj && dotnet Patient.dll"
+
+    patient-database:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        environment:
+            SA_PASSWORD: iLuvPatients4ever<3
+            ACCEPT_EULA: "Y"
+        ports:
+            - "1401:1433"
+        volumes:
+            - ./data/patientdb:/var/opt/mssql/data
+        networks:
+            - bpt-network
+
+    measurement-database:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        environment:
+            SA_PASSWORD: iLuvMeasurements4ever<3
+            ACCEPT_EULA: "Y"
+        ports:
+            - "1402:1433"
+        volumes:
+            - ./data/measurementdb:/var/opt/mssql/data
+        networks:
+            - bpt-network
+
+    featurehub:
+        image: featurehub/party-server:latest
+        ports:
+            - "8085:8085"
+        volumes:
+            - featurehub-h2-data:/db
+        networks:
+            - bpt-network
+
+    jenkins:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: jenkins/jenkins:lts
+        ports:
+            - "8080:8080"
+            - "50000:50000"
+        volumes:
+            - jenkins_home:/var/jenkins_home
+        networks:
+            - bpt-network
+
+networks:
+    bpt-network:
+        driver: bridge
+
+volumes:
+    featurehub-h2-data:
+    jenkins_home:
